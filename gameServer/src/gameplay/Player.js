@@ -563,6 +563,7 @@ export class Player {
 				}
 				this.#updateCurrentTile();
 				this.#currentPositionChanged();
+				this.#checkKills();
 				this.#drainMovementQueue();
 			}
 		}
@@ -593,56 +594,26 @@ export class Player {
 			this.#trailBounds.max = this.#currentPosition.clone();
 		}
 
-		{
-			// Check if any new players entered or left our viewport
-			let leftPlayers = new Set([...this.#playersInViewport]);
-			for (const player of this.game.getOverlappingTrailBoundsPlayersForRect(this.getUpdatesViewport())) {
-				leftPlayers.delete(player);
-				this.#playerAddedToViewport(player);
-			}
-			for (const player of leftPlayers) {
-				this.#playerRemovedFromViewport(player);
-			}
-
-			// Check if we moved in or out of someone elses viewport
-			leftPlayers = new Set([...this.#inOtherPlayerViewports]);
-			for (const player of this.game.getOverlappingViewportPlayersForRect(this.getTrailBounds())) {
-				leftPlayers.delete(player);
-				this.#inOtherPlayerViewports.add(player);
-				player.#playerAddedToViewport(this);
-			}
-			for (const player of leftPlayers) {
-				this.#inOtherPlayerViewports.delete(player);
-				player.#playerRemovedFromViewport(this);
-			}
+		// Check if any new players entered or left our viewport
+		let leftPlayers = new Set([...this.#playersInViewport]);
+		for (const player of this.game.getOverlappingTrailBoundsPlayersForRect(this.getUpdatesViewport())) {
+			leftPlayers.delete(player);
+			this.#playerAddedToViewport(player);
+		}
+		for (const player of leftPlayers) {
+			this.#playerRemovedFromViewport(player);
 		}
 
-		// Check if we touch the edge of the map.
-		if (
-			this.#currentPosition.x <= 0 || this.#currentPosition.y <= 0 ||
-			this.#currentPosition.x >= this.game.arena.width - 1 ||
-			this.#currentPosition.y >= this.game.arena.height - 1
-		) {
-			this.#killPlayer(this, "area-bounds");
+		// Check if we moved in or out of someone elses viewport
+		leftPlayers = new Set([...this.#inOtherPlayerViewports]);
+		for (const player of this.game.getOverlappingViewportPlayersForRect(this.getTrailBounds())) {
+			leftPlayers.delete(player);
+			this.#inOtherPlayerViewports.add(player);
+			player.#playerAddedToViewport(this);
 		}
-
-		// Check if we are touching someone's trail.
-		for (const player of this.game.getOverlappingTrailBoundsPlayersForPos(this.#currentPosition)) {
-			const includeLastSegments = player != this;
-			if (player.pointIsInTrail(this.#currentPosition, { includeLastSegments })) {
-				const killedSelf = player == this;
-				const success = this.#killPlayer(player, killedSelf ? "self" : "player");
-				if (success) {
-					this.game.broadcastHitLineAnimation(player, this);
-				}
-				if (
-					!killedSelf &&
-					player.#currentPosition.x == this.#currentPosition.x &&
-					player.#currentPosition.y == this.#currentPosition.y
-				) {
-					player.#killPlayer(this, "player");
-				}
-			}
+		for (const player of leftPlayers) {
+			this.#inOtherPlayerViewports.delete(player);
+			player.#playerRemovedFromViewport(this);
 		}
 
 		// Send new sections of the map when needed.
@@ -735,6 +706,40 @@ export class Player {
 		const chunkData = this.game.getArenaChunkForMessage(rect, this);
 		for (const rect of chunkData) {
 			this.connection.sendFillRect(rect.rect, rect.tileType.colorId, rect.tileType.patternId);
+		}
+	}
+
+	/**
+	 * Check if we killed a player by hitting their trail,
+	 * and if we died by running into a player's head or the wall.
+	 */
+	#checkKills() {
+		// Check if we touch the edge of the map.
+		if (
+			this.#currentPosition.x <= 0 || this.#currentPosition.y <= 0 ||
+			this.#currentPosition.x >= this.game.arena.width - 1 ||
+			this.#currentPosition.y >= this.game.arena.height - 1
+		) {
+			this.#killPlayer(this, "area-bounds");
+		}
+
+		// Check if we are touching someone's trail.
+		for (const player of this.game.getOverlappingTrailBoundsPlayersForPos(this.#currentPosition)) {
+			const includeLastSegments = player != this;
+			if (player.pointIsInTrail(this.#currentPosition, { includeLastSegments })) {
+				const killedSelf = player == this;
+				const success = this.#killPlayer(player, killedSelf ? "self" : "player");
+				if (success) {
+					this.game.broadcastHitLineAnimation(player, this);
+				}
+				if (
+					!killedSelf &&
+					player.#currentPosition.x == this.#currentPosition.x &&
+					player.#currentPosition.y == this.#currentPosition.y
+				) {
+					player.#killPlayer(this, "player");
+				}
+			}
 		}
 	}
 
