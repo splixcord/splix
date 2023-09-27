@@ -608,11 +608,9 @@ export class Player {
 		leftPlayers = new Set([...this.#inOtherPlayerViewports]);
 		for (const player of this.game.getOverlappingViewportPlayersForRect(this.getTrailBounds())) {
 			leftPlayers.delete(player);
-			this.#inOtherPlayerViewports.add(player);
 			player.#playerAddedToViewport(this);
 		}
 		for (const player of leftPlayers) {
-			this.#inOtherPlayerViewports.delete(player);
 			player.#playerRemovedFromViewport(this);
 		}
 
@@ -628,6 +626,7 @@ export class Player {
 	#playerAddedToViewport(player) {
 		if (this.#playersInViewport.has(player)) return;
 		this.#playersInViewport.add(player);
+		player.#inOtherPlayerViewports.add(this);
 		player.sendPlayerStateToPlayer(this);
 		const colorId = player.skinColorIdForPlayer(this);
 		const playerId = player == this ? 0 : player.id;
@@ -644,6 +643,7 @@ export class Player {
 	#playerRemovedFromViewport(player) {
 		if (this.#removedFromGame) return;
 		if (!this.#playersInViewport.has(player)) return;
+		player.#inOtherPlayerViewports.delete(this);
 		this.#playersInViewport.delete(player);
 		this.#connection.sendRemovePlayer(player.id);
 	}
