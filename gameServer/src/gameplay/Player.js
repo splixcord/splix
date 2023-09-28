@@ -197,6 +197,7 @@ export class Player {
 		this.#lastEdgeChunkSendX = this.#currentPosition.x;
 		this.#lastEdgeChunkSendY = this.#currentPosition.y;
 		this.#lastCertainClientPosition = position.clone();
+		this.#currentTileType = this.#id;
 		this.#currentPositionChanged();
 
 		this.#eventHistory.onUndoEvent((event) => {
@@ -324,7 +325,6 @@ export class Player {
 			}
 			this.#eventHistory.undoRecentEvents(previousPosition, this.#currentPosition);
 			this.game.broadcastPlayerState(this);
-			this.#updateCurrentTile();
 			this.#currentPositionChanged();
 		}
 
@@ -872,29 +872,28 @@ export class Player {
 	 */
 	#updateCurrentTile() {
 		const tileValue = this.#game.arena.getTileValue(this.#currentPosition);
-		if (this.#currentTileType != tileValue) {
-			// When the player moves out of their captured area, we will start a new trail.
-			if (tileValue != this.#id && !this.isGeneratingTrail) {
-				this.#eventHistory.addEvent(this.getPosition(), { type: "start-trail" });
-				this.#addTrailVertex(this.#currentPosition);
-				this.game.broadcastPlayerTrail(this);
-			}
 
-			// When the player comes back into their captured area, we add a final vertex to the trail,
-			// Then fill the tiles underneath the trail, and finally clear the trail.
-			if (tileValue == this.#id && this.isGeneratingTrail) {
-				this.#addTrailVertex(this.#currentPosition);
-				if (this.#allMyTilesCleared) {
-					throw new Error("Assertion failed, player tiles have already been removed from the arena.");
-				}
-				this.game.arena.fillPlayerTrail(this.#trailVertices, this.id);
-				this.#updateCapturedArea();
-				this.game.broadcastPlayerEmptyTrail(this);
-				this.#trailVertices = [];
-			}
-
-			this.#currentTileType = tileValue;
+		// When the player moves out of their captured area, we will start a new trail.
+		if (tileValue != this.#id && !this.isGeneratingTrail) {
+			this.#eventHistory.addEvent(this.getPosition(), { type: "start-trail" });
+			this.#addTrailVertex(this.#currentPosition);
+			this.game.broadcastPlayerTrail(this);
 		}
+
+		// When the player comes back into their captured area, we add a final vertex to the trail,
+		// Then fill the tiles underneath the trail, and finally clear the trail.
+		if (tileValue == this.#id && this.isGeneratingTrail) {
+			this.#addTrailVertex(this.#currentPosition);
+			if (this.#allMyTilesCleared) {
+				throw new Error("Assertion failed, player tiles have already been removed from the arena.");
+			}
+			this.game.arena.fillPlayerTrail(this.#trailVertices, this.id);
+			this.#updateCapturedArea();
+			this.game.broadcastPlayerEmptyTrail(this);
+			this.#trailVertices = [];
+		}
+
+		this.#currentTileType = tileValue;
 	}
 
 	async #updateCapturedArea() {
